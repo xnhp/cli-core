@@ -1,6 +1,7 @@
 package cn.varsa.cli.core
 
 import picocli.CommandLine
+import picocli.CommandLine.Model.CommandSpec
 import java.nio.file.Path
 import java.util.concurrent.Callable
 import java.util.logging.Formatter
@@ -164,6 +165,38 @@ object CliMain {
       1
     }
     return commandLine.execute(*args)
+  }
+}
+
+object CliCommands {
+  fun discover(rootCommand: Any): List<CommandLine> = discover(CommandLine(rootCommand))
+
+  fun discover(rootCommandLine: CommandLine): List<CommandLine> {
+    val result = mutableListOf<CommandLine>()
+
+    fun visit(commandLine: CommandLine) {
+      result.add(commandLine)
+      val subcommands: Map<String, CommandLine> = commandLine.subcommands
+      val children = subcommands
+        .values
+        .distinctBy { System.identityHashCode(it) }
+        .sortedBy { it.commandSpec.name() }
+      children.forEach(::visit)
+    }
+
+    visit(rootCommandLine)
+    return result
+  }
+
+  fun commandPath(commandLine: CommandLine): String {
+    val names = mutableListOf<String>()
+    var spec: CommandSpec = commandLine.commandSpec
+    while (true) {
+      names.add(spec.name())
+      val parent = spec.parent() ?: break
+      spec = parent
+    }
+    return names.asReversed().joinToString(" ")
   }
 }
 
