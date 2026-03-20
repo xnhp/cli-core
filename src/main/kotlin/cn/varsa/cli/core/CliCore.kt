@@ -153,9 +153,97 @@ object CliProcess {
   }
 }
 
+sealed interface CliCommandNode {
+  val name: String
+  val description: String
+  val aliases: List<String>
+}
+
+data class CliCommandGroup(
+  override val name: String,
+  override val description: String,
+  val children: List<CliCommandNode>,
+  val handler: (() -> Int)? = null,
+  override val aliases: List<String> = emptyList(),
+  val mixinStandardHelpOptions: Boolean = true
+) : CliCommandNode
+
+data class CliCommandLeaf(
+  override val name: String,
+  override val description: String,
+  val handler: (Array<String>) -> Int,
+  override val aliases: List<String> = emptyList(),
+  val mixinStandardHelpOptions: Boolean = false
+) : CliCommandNode
+
+@CommandLine.Command
+private class CliGroupExecutor(private val handler: (() -> Int)?) : Callable<Int> {
+  @CommandLine.Spec
+  lateinit var spec: CommandSpec
+
+  override fun call(): Int {
+    if (handler != null) return handler.invoke()
+    spec.commandLine().usage(System.out)
+    return 0
+  }
+}
+
+@CommandLine.Command
+private class CliLeafExecutor(private val handler: (Array<String>) -> Int) : Callable<Int> {
+  @CommandLine.Unmatched
+  var args: MutableList<String> = mutableListOf()
+
+  override fun call(): Int = handler(args.toTypedArray())
+}
+
+private fun createCommandLine(node: CliCommandNode): CommandLine {
+  val commandLine = when (node) {
+    is CliCommandGroup -> CommandLine(CliGroupExecutor(node.handler))
+    is CliCommandLeaf -> CommandLine(CliLeafExecutor(node.handler))
+  }
+
+  val spec = commandLine.commandSpec
+  spec.name(node.name)
+  spec.usageMessage().description(node.description)
+  if (node.aliases.isNotEmpty()) {
+    spec.aliases(*node.aliases.toTypedArray())
+  }
+
+  val mixinHelp = when (node) {
+    is CliCommandGroup -> node.mixinStandardHelpOptions
+    is CliCommandLeaf -> node.mixinStandardHelpOptions
+  }
+  spec.mixinStandardHelpOptions(mixinHelp)
+
+  if (node is CliCommandLeaf) {
+    commandLine.setUnmatchedArgumentsAllowed(true)
+    commandLine.setUnmatchedOptionsArePositionalParams(true)
+  }
+
+  if (node is CliCommandGroup) {
+    node.children.forEach { child ->
+      val childCommand = createCommandLine(child)
+      commandLine.addSubcommand(childCommand.commandSpec.name(), childCommand)
+    }
+  }
+
+  return commandLine
+}
+
 object CliMain {
+  fun createCommandLine(rootCommand: CliCommandGroup): CommandLine = createCommandLine(rootCommand as CliCommandNode)
+
+  fun run(rootCommand: CliCommandGroup, args: Array<String>): Int {
+    val commandLine = createCommandLine(rootCommand)
+    return run(commandLine, args)
+  }
+
   fun run(rootCommand: Any, args: Array<String>): Int {
     val commandLine = CommandLine(rootCommand)
+    return run(commandLine, args)
+  }
+
+  fun run(commandLine: CommandLine, args: Array<String>): Int {
     commandLine.setExecutionExceptionHandler { ex, cmd, _ ->
       if (ex is CliFailure) {
         cmd.err.println("Error: ${ex.message}")
