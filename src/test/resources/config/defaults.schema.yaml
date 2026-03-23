@@ -1,0 +1,23 @@
+$schema: "https://json-schema.org/draft/2020-12/schema"
+type: object
+required: [id]
+additionalProperties: false
+$defs:
+  stringArray:
+    type: array
+    items:
+      type: string
+properties:
+  id:
+    type: string
+    minLength: 1
+  enabled:
+    type: boolean
+    default: false
+  runner:
+    type: string
+    enum: [junit4, junit5]
+    default: junit5
+  args:
+    $ref: "#/$defs/stringArray"
+    default: []

@@ -13,6 +13,14 @@ repositories {
 dependencies {
   implementation(kotlin("stdlib"))
   implementation("info.picocli:picocli:4.7.6")
+  implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.18.2")
+  implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.18.2")
+  implementation("com.networknt:json-schema-validator:1.5.6")
+  testImplementation(kotlin("test"))
+}
+
+tasks.test {
+  useJUnitPlatform()
 }
 
 kotlin {
