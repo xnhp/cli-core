@@ -173,8 +173,27 @@ data class CliCommandLeaf(
   override val description: String,
   val handler: (Array<String>) -> Int,
   override val aliases: List<String> = emptyList(),
-  val mixinStandardHelpOptions: Boolean = false
+  val mixinStandardHelpOptions: Boolean = false,
+  val options: List<CliOption> = emptyList(),
+  val positionalArgs: List<CliPositionalArg> = emptyList()
 ) : CliCommandNode
+
+data class CliOption(
+  val names: List<String>,
+  val description: String,
+  val takesValue: Boolean = false,
+  val valueLabel: String? = null,
+  val required: Boolean = false,
+  val defaultValue: String? = null,
+  val arity: String? = null
+)
+
+data class CliPositionalArg(
+  val index: Int,
+  val name: String,
+  val description: String,
+  val arity: String = "0..1"
+)
 
 @CommandLine.Command
 private class CliGroupExecutor(private val handler: (() -> Int)?) : Callable<Int> {
@@ -190,10 +209,39 @@ private class CliGroupExecutor(private val handler: (() -> Int)?) : Callable<Int
 
 @CommandLine.Command
 private class CliLeafExecutor(private val handler: (Array<String>) -> Int) : Callable<Int> {
+  @CommandLine.Spec
+  lateinit var spec: CommandSpec
+
   @CommandLine.Unmatched
   var args: MutableList<String> = mutableListOf()
 
-  override fun call(): Int = handler(args.toTypedArray())
+  override fun call(): Int {
+    val original = spec.commandLine().parseResult
+      ?.originalArgs()
+      ?.map { it.toString() }
+      ?.toTypedArray()
+    val effective = original?.let { stripCommandPathTokens(it, spec) } ?: args.toTypedArray()
+    return handler(effective)
+  }
+}
+
+private fun stripCommandPathTokens(args: Array<String>, spec: CommandSpec): Array<String> {
+  val tokens = args.toList()
+  val path = generateSequence(spec) { it.parent() }
+    .map { it.name() }
+    .toList()
+    .asReversed()
+  val withoutRoot = if (path.size > 1) path.drop(1) else emptyList()
+  return when {
+    tokens.startsWith(path) -> tokens.drop(path.size).toTypedArray()
+    withoutRoot.isNotEmpty() && tokens.startsWith(withoutRoot) -> tokens.drop(withoutRoot.size).toTypedArray()
+    else -> args
+  }
+}
+
+private fun List<String>.startsWith(prefix: List<String>): Boolean {
+  if (prefix.size > this.size) return false
+  return prefix.indices.all { this[it] == prefix[it] }
 }
 
 private fun createCommandLine(node: CliCommandNode): CommandLine {
@@ -216,6 +264,31 @@ private fun createCommandLine(node: CliCommandNode): CommandLine {
   spec.mixinStandardHelpOptions(mixinHelp)
 
   if (node is CliCommandLeaf) {
+    node.options.forEach { option ->
+      val builder = CommandLine.Model.OptionSpec.builder(option.names.toTypedArray())
+      builder.description(option.description)
+      builder.required(option.required)
+      option.defaultValue?.let { value -> builder.defaultValue(value) }
+      when {
+        option.arity != null -> builder.arity(option.arity)
+        option.takesValue -> builder.arity("1")
+        else -> builder.arity("0")
+      }
+      if (option.takesValue) {
+        builder.type(String::class.java)
+        option.valueLabel?.let { label -> builder.paramLabel(label) }
+      }
+      spec.addOption(builder.build())
+    }
+    node.positionalArgs.sortedBy { it.index }.forEach { arg ->
+      val builder = CommandLine.Model.PositionalParamSpec.builder()
+      builder.index(arg.index.toString())
+      builder.paramLabel(arg.name)
+      builder.arity(arg.arity)
+      builder.description(arg.description)
+      builder.type(String::class.java)
+      spec.addPositional(builder.build())
+    }
     commandLine.setUnmatchedArgumentsAllowed(true)
     commandLine.setUnmatchedOptionsArePositionalParams(true)
   }
@@ -245,11 +318,13 @@ object CliMain {
 
   fun run(commandLine: CommandLine, args: Array<String>): Int {
     commandLine.setExecutionExceptionHandler { ex, cmd, _ ->
+      val useColor = CliStyle.useColor(ColorMode.AUTO)
+      val prefix = CliStyle.error(useColor)
       if (ex is CliFailure) {
-        cmd.err.println("Error: ${ex.message}")
+        cmd.err.println("$prefix ${ex.message}")
         return@setExecutionExceptionHandler ex.exitCode
       }
-      cmd.err.println("Error: ${ex.message}")
+      cmd.err.println("$prefix ${ex.message}")
       1
     }
     return commandLine.execute(*args)
