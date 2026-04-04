@@ -91,8 +91,19 @@ object YamlConfig {
 
   fun formatIssues(issues: List<YamlValidationIssue>): String =
     issues.joinToString(separator = "\n") { issue ->
-      "- ${issue.instancePath}: ${issue.message} [${issue.schemaPath}]"
+      val normalizedMessage = normalizeIssueMessage(issue)
+      "- ${issue.instancePath}: ${normalizedMessage}"
     }
+
+  private fun normalizeIssueMessage(issue: YamlValidationIssue): String {
+    var message = issue.message.trim()
+    val instancePrefix = "${issue.instancePath}:"
+    if (message.startsWith(instancePrefix)) {
+      message = message.removePrefix(instancePrefix).trimStart()
+    }
+    message = message.replace(Regex("\\s*\\[[a-zA-Z][a-zA-Z0-9+.-]*://[^\\]]+\\]$"), "")
+    return message
+  }
 
   private fun parseYaml(path: Path): JsonNode {
     Files.newInputStream(path).use { return parseYaml(it) }

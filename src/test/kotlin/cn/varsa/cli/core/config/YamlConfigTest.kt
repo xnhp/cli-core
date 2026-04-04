@@ -88,4 +88,37 @@ class YamlConfigTest {
     assertEquals("junit5", root["runner"])
     assertEquals(emptyList<String>(), root["args"])
   }
+
+  @Test
+  fun `format issues avoids duplicating instance path`() {
+    val issues = listOf(
+      YamlValidationIssue(
+        instancePath = "$",
+        schemaPath = "https://example.local/schemas/pde-config.schema.yaml#/additionalProperties",
+        message = "$: property 'targetFile' is not defined in the schema and the schema does not allow additional properties"
+      )
+    )
+
+    val formatted = YamlConfig.formatIssues(issues)
+
+    assertEquals(
+      "- $: property 'targetFile' is not defined in the schema and the schema does not allow additional properties",
+      formatted
+    )
+  }
+
+  @Test
+  fun `format issues removes trailing schema uri from message`() {
+    val issues = listOf(
+      YamlValidationIssue(
+        instancePath = "$.build",
+        schemaPath = "https://example.local/schemas/pde-config.schema.yaml#/properties/build",
+        message = "$.build: must be string [https://example.local/schemas/pde-config.schema.yaml#/properties/build/type]"
+      )
+    )
+
+    val formatted = YamlConfig.formatIssues(issues)
+
+    assertEquals("- $.build: must be string", formatted)
+  }
 }
