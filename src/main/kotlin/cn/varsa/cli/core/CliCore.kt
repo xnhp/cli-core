@@ -185,7 +185,8 @@ data class CliOption(
   val valueLabel: String? = null,
   val required: Boolean = false,
   val defaultValue: String? = null,
-  val arity: String? = null
+  val arity: String? = null,
+  val repeatable: Boolean = false
 )
 
 data class CliPositionalArg(
@@ -275,7 +276,11 @@ private fun createCommandLine(node: CliCommandNode): CommandLine {
         else -> builder.arity("0")
       }
       if (option.takesValue) {
-        builder.type(String::class.java)
+        if (option.repeatable) {
+          builder.type(List::class.java).auxiliaryTypes(String::class.java)
+        } else {
+          builder.type(String::class.java)
+        }
         option.valueLabel?.let { label -> builder.paramLabel(label) }
       }
       spec.addOption(builder.build())
