@@ -2,6 +2,7 @@ package cn.varsa.cli.core
 
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import io.modelcontextprotocol.kotlin.sdk.server.ServerOptions
+import io.modelcontextprotocol.kotlin.sdk.server.StdioServerTransport
 import io.modelcontextprotocol.kotlin.sdk.types.CallToolRequest
 import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
 import io.modelcontextprotocol.kotlin.sdk.types.Implementation
@@ -9,6 +10,10 @@ import io.modelcontextprotocol.kotlin.sdk.types.ServerCapabilities
 import io.modelcontextprotocol.kotlin.sdk.types.TextContent
 import io.modelcontextprotocol.kotlin.sdk.types.ToolAnnotations
 import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.io.asSink
+import kotlinx.io.asSource
+import kotlinx.io.buffered
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -137,6 +142,23 @@ fun createCliMcpServer(
     registerCliTools(root, config)
   }
 )
+
+suspend fun runCliMcpStdioServer(
+  root: CliCommandGroup,
+  name: String = root.name,
+  version: String = "0.1.0",
+  instructions: String = "Tools are generated from explicitly annotated cli-core command leaves.",
+  config: CliMcpRegistrationConfig = CliMcpRegistrationConfig()
+) {
+  val server = createCliMcpServer(root, name, version, instructions, config)
+  server.createSession(
+    StdioServerTransport(
+      System.`in`.asSource().buffered(),
+      System.out.asSink().buffered()
+    ) {}
+  )
+  awaitCancellation()
+}
 
 fun CliCommandGroup.cliMcpTools(): List<CliRegisteredTool> = buildList {
   collectCliMcpTools(this@cliMcpTools, listOf(name))

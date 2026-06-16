@@ -59,7 +59,7 @@ val root = CliCommandGroup(
 val server = createCliMcpServer(root)
 ```
 
-Use `createCliMcpServer(root)` when an application wants a preconfigured MCP `Server` with cli-core tools registered. Use `server.registerCliTools(root)` when the application already owns the MCP server lifecycle or transport setup.
+Use `runCliMcpStdioServer(root)` for local agent/editor integrations that spawn the application as an MCP subprocess over stdin/stdout. Use `createCliMcpServer(root)` when an application wants a preconfigured MCP `Server` with cli-core tools registered. Use `server.registerCliTools(root)` when the application already owns the MCP server lifecycle or transport setup.
 
 By default, MCP input schemas are generated from `CliOption` and `CliPositionalArg` metadata. Set `CliToolBinding(inputSchema = ...)` and `decodeArguments = ...` for commands whose tool input does not map cleanly to the generated schema.
 
