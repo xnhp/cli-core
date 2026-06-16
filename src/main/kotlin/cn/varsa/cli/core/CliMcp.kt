@@ -25,6 +25,7 @@ import kotlinx.serialization.json.put
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
 import java.io.PrintWriter
+import java.io.OutputStream
 import java.nio.charset.StandardCharsets
 import java.nio.file.Path
 import java.util.concurrent.locks.ReentrantLock
@@ -150,14 +151,40 @@ suspend fun runCliMcpStdioServer(
   instructions: String = "Tools are generated from explicitly annotated cli-core command leaves.",
   config: CliMcpRegistrationConfig = CliMcpRegistrationConfig()
 ) {
-  val server = createCliMcpServer(root, name, version, instructions, config)
+  val protocolOut = System.out
+  val server = withStdoutRedirectedToStderr {
+    createCliMcpServer(root, name, version, instructions, config)
+  }
   server.createSession(
     StdioServerTransport(
       System.`in`.asSource().buffered(),
-      System.out.asSink().buffered()
+      protocolOut.asSink().buffered()
     ) {}
   )
   awaitCancellation()
+}
+
+private inline fun <T> withStdoutRedirectedToStderr(block: () -> T): T {
+  val originalOut = System.out
+  val originalErr = System.err
+  System.setOut(PrintStream(object : OutputStream() {
+    override fun write(b: Int) {
+      originalErr.write(b)
+    }
+
+    override fun write(b: ByteArray, off: Int, len: Int) {
+      originalErr.write(b, off, len)
+    }
+
+    override fun flush() {
+      originalErr.flush()
+    }
+  }, true, StandardCharsets.UTF_8))
+  return try {
+    block()
+  } finally {
+    System.setOut(originalOut)
+  }
 }
 
 fun CliCommandGroup.cliMcpTools(): List<CliRegisteredTool> = buildList {
