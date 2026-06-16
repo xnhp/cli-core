@@ -175,7 +175,8 @@ data class CliCommandLeaf(
   override val aliases: List<String> = emptyList(),
   val mixinStandardHelpOptions: Boolean = false,
   val options: List<CliOption> = emptyList(),
-  val positionalArgs: List<CliPositionalArg> = emptyList()
+  val positionalArgs: List<CliPositionalArg> = emptyList(),
+  val tool: CliToolBinding? = null
 ) : CliCommandNode
 
 data class CliOption(
@@ -195,6 +196,236 @@ data class CliPositionalArg(
   val description: String,
   val arity: String = "0..1"
 )
+
+object CliArgs {
+  fun requireArgCount(args: Array<String>, expected: Int, usage: String, exitCode: Int = 2) {
+    requireArgCount(args, expected..expected, usage, exitCode)
+  }
+
+  fun requireArgCount(args: Array<String>, allowed: IntRange, usage: String, exitCode: Int = 2) {
+    if (args.size !in allowed) throw CliException("Usage: $usage", exitCode)
+  }
+
+  fun singleFlag(args: Array<String>, flag: String, usage: String, exitCode: Int = 2): Boolean = when {
+    args.isEmpty() -> false
+    args.size == 1 && args[0] == flag -> true
+    else -> throw CliException("Usage: $usage", exitCode)
+  }
+}
+
+object CliDsl {
+  fun group(
+    name: String,
+    description: String,
+    children: List<CliCommandNode>,
+    handler: (() -> Int)? = null,
+    aliases: List<String> = emptyList(),
+    mixinStandardHelpOptions: Boolean = true
+  ): CliCommandGroup = CliCommandGroup(
+    name = name,
+    description = description,
+    children = children,
+    handler = handler,
+    aliases = aliases,
+    mixinStandardHelpOptions = mixinStandardHelpOptions
+  )
+
+  fun group(
+    name: String,
+    description: String,
+    vararg children: CliCommandNode
+  ): CliCommandGroup = group(name, description, children.toList())
+
+  fun action(
+    name: String,
+    description: String,
+    aliases: List<String> = emptyList(),
+    mixinStandardHelpOptions: Boolean = false,
+    options: List<CliOption> = emptyList(),
+    positionalArgs: List<CliPositionalArg> = emptyList(),
+    tool: CliToolBinding? = null,
+    handler: (Array<String>) -> Unit
+  ): CliCommandLeaf = CliCommandLeaf(
+    name = name,
+    description = description,
+    aliases = aliases,
+    mixinStandardHelpOptions = mixinStandardHelpOptions,
+    options = options,
+    positionalArgs = positionalArgs,
+    tool = tool,
+    handler = { args ->
+      handler(args)
+      0
+    }
+  )
+
+  fun output(
+    name: String,
+    description: String,
+    print: (String) -> Unit,
+    aliases: List<String> = emptyList(),
+    mixinStandardHelpOptions: Boolean = false,
+    options: List<CliOption> = emptyList(),
+    positionalArgs: List<CliPositionalArg> = emptyList(),
+    tool: CliToolBinding? = null,
+    handler: (Array<String>) -> String
+  ): CliCommandLeaf = CliCommandLeaf(
+    name = name,
+    description = description,
+    aliases = aliases,
+    mixinStandardHelpOptions = mixinStandardHelpOptions,
+    options = options,
+    positionalArgs = positionalArgs,
+    tool = tool,
+    handler = { args ->
+      print(handler(args))
+      0
+    }
+  )
+
+  fun actionNoArgs(
+    name: String,
+    description: String,
+    usage: String,
+    exitCode: Int = 2,
+    aliases: List<String> = emptyList(),
+    mixinStandardHelpOptions: Boolean = false,
+    tool: CliToolBinding? = null,
+    handler: () -> Unit
+  ): CliCommandLeaf = action(
+    name = name,
+    description = description,
+    aliases = aliases,
+    mixinStandardHelpOptions = mixinStandardHelpOptions,
+    tool = tool
+  ) { args ->
+    CliArgs.requireArgCount(args, 0, usage, exitCode)
+    handler()
+  }
+
+  fun outputNoArgs(
+    name: String,
+    description: String,
+    usage: String,
+    print: (String) -> Unit,
+    exitCode: Int = 2,
+    aliases: List<String> = emptyList(),
+    mixinStandardHelpOptions: Boolean = false,
+    tool: CliToolBinding? = null,
+    handler: () -> String
+  ): CliCommandLeaf = output(
+    name = name,
+    description = description,
+    print = print,
+    aliases = aliases,
+    mixinStandardHelpOptions = mixinStandardHelpOptions,
+    tool = tool
+  ) { args ->
+    CliArgs.requireArgCount(args, 0, usage, exitCode)
+    handler()
+  }
+
+  fun <T> parsedAction(
+    name: String,
+    description: String,
+    parse: (Array<String>) -> T,
+    aliases: List<String> = emptyList(),
+    mixinStandardHelpOptions: Boolean = false,
+    options: List<CliOption> = emptyList(),
+    positionalArgs: List<CliPositionalArg> = emptyList(),
+    tool: CliToolBinding? = null,
+    handler: (T) -> Unit
+  ): CliCommandLeaf = action(
+    name = name,
+    description = description,
+    aliases = aliases,
+    mixinStandardHelpOptions = mixinStandardHelpOptions,
+    options = options,
+    positionalArgs = positionalArgs,
+    tool = tool
+  ) { args ->
+    handler(parse(args))
+  }
+
+  fun <T> parsedOutput(
+    name: String,
+    description: String,
+    print: (String) -> Unit,
+    parse: (Array<String>) -> T,
+    aliases: List<String> = emptyList(),
+    mixinStandardHelpOptions: Boolean = false,
+    options: List<CliOption> = emptyList(),
+    positionalArgs: List<CliPositionalArg> = emptyList(),
+    tool: CliToolBinding? = null,
+    handler: (T) -> String
+  ): CliCommandLeaf = output(
+    name = name,
+    description = description,
+    print = print,
+    aliases = aliases,
+    mixinStandardHelpOptions = mixinStandardHelpOptions,
+    options = options,
+    positionalArgs = positionalArgs,
+    tool = tool
+  ) { args ->
+    handler(parse(args))
+  }
+}
+
+object CliCompletion {
+  fun suggest(root: CliCommandGroup, tokens: List<String>): List<String> {
+    val args = if (tokens.firstOrNull() == root.name) tokens.drop(1) else tokens
+    val path = args.filter { it.isNotBlank() }
+    val node = resolveNode(root, path)
+    return when (node) {
+      is CliCommandGroup -> node.children
+        .asSequence()
+        .filterNot { it.name.startsWith("__") }
+        .flatMap { child -> sequenceOf(child.name) + child.aliases.asSequence() }
+        .distinct()
+        .sorted()
+        .toList()
+      is CliCommandLeaf -> node.options
+        .flatMap { it.names }
+        .distinct()
+        .sorted()
+    }
+  }
+
+  fun zshScript(commandName: String): String = """
+    #compdef $commandName
+
+    _$commandName() {
+      local -a context_words
+      if (( CURRENT > 1 )); then
+        context_words=("${'$'}{(@)words[1,${'$'}((CURRENT-1))]}")
+      else
+        context_words=()
+      fi
+
+      local -a suggestions
+      suggestions=("${'$'}{(@f)${'$'}($commandName __complete "${'$'}{context_words[@]}")}")
+      if (( ${'$'}{#suggestions[@]} > 0 )); then
+        compadd -- "${'$'}{suggestions[@]}"
+      fi
+    }
+
+    compdef _$commandName $commandName
+  """.trimIndent()
+
+  private fun resolveNode(root: CliCommandGroup, path: List<String>): CliCommandNode {
+    var current: CliCommandNode = root
+    for (token in path) {
+      if (token.startsWith("-")) continue
+      val group = current as? CliCommandGroup ?: return current
+      val next = group.children.firstOrNull { child ->
+        child.name == token || child.aliases.contains(token)
+      } ?: return group
+      current = next
+    }
+    return current
+  }
+}
 
 @CommandLine.Command
 private class CliGroupExecutor(private val handler: (() -> Int)?) : Callable<Int> {

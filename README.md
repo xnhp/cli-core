@@ -27,6 +27,43 @@ All core utilities currently live in one file: `src/main/kotlin/cn/varsa/cli/cor
 - `CliProcess`: helpers to run subprocesses with either captured or streaming output.
 - `CliMain`: wrapper around Picocli execution with centralized exception-to-exit-code handling.
 - `CliCommands`: recursively discovers command trees and builds a full command path string.
+- `CliCommandGroup` / `CliCommandLeaf`: declarative command definitions that can be executed through Picocli.
+- `CliToolBinding`: opt-in MCP metadata for exposing declarative command leaves as tools.
+
+## MCP support
+
+MCP support is currently part of the main `cn.varsa:cli-core` artifact. This intentionally brings in the Kotlin MCP SDK and its runtime dependencies for consumers of this artifact; split packaging can be revisited if CLI-only consumers need a lighter dependency graph.
+
+MCP tool registration is scoped to cli-core's declarative command API. Only `CliCommandLeaf` instances with an explicit `tool = CliToolBinding(...)` are registered; arbitrary Picocli `CommandLine` or `@Command` graphs are not discovered as MCP tools.
+
+Basic usage:
+
+```kotlin
+val root = CliCommandGroup(
+  name = "app",
+  description = "Example app",
+  children = listOf(
+    CliCommandLeaf(
+      name = "hello",
+      description = "Print a greeting",
+      options = listOf(CliOption(listOf("--name"), "Name to greet", takesValue = true, required = true)),
+      tool = CliToolBinding(id = "hello"),
+      handler = { args ->
+        println("hello ${'$'}{args.last()}")
+        0
+      }
+    )
+  )
+)
+
+val server = createCliMcpServer(root)
+```
+
+Use `createCliMcpServer(root)` when an application wants a preconfigured MCP `Server` with cli-core tools registered. Use `server.registerCliTools(root)` when the application already owns the MCP server lifecycle or transport setup.
+
+By default, MCP input schemas are generated from `CliOption` and `CliPositionalArg` metadata. Set `CliToolBinding(inputSchema = ...)` and `decodeArguments = ...` for commands whose tool input does not map cleanly to the generated schema.
+
+MCP command execution is serialized inside cli-core because command handlers may still write to global stdout/stderr or depend on process-wide state. `user.dir` is not changed by default; applications can opt into per-call cwd changes with `CliMcpRegistrationConfig(workingDirectoryProvider = ...)`, but this is also serialized.
 
 ## Build and run basics
 

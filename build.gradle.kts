@@ -16,6 +16,7 @@ dependencies {
   implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.18.2")
   implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.18.2")
   implementation("com.networknt:json-schema-validator:1.5.6")
+  implementation("io.modelcontextprotocol:kotlin-sdk-server:0.13.0")
   testImplementation(kotlin("test"))
 }
 
