@@ -20,6 +20,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import java.io.ByteArrayOutputStream
@@ -191,6 +192,45 @@ fun CliCommandGroup.cliMcpTools(): List<CliRegisteredTool> = buildList {
   collectCliMcpTools(this@cliMcpTools, listOf(name))
 }
 
+fun CliCommandGroup.cliMcpToolsListText(): String {
+  val tools = cliMcpTools()
+  return buildString {
+    appendLine("MCP tools for $name (${tools.size})")
+    tools.forEachIndexed { index, tool ->
+      if (index > 0) appendLine()
+      appendLine(tool.name)
+      tool.title?.let { appendLine("  Title: $it") }
+      appendLine("  Description: ${tool.description}")
+      appendLine("  Parameters:")
+      val properties = tool.inputSchema.properties.orEmpty()
+      if (properties.isEmpty()) {
+        appendLine("    none")
+      } else {
+        val required = tool.inputSchema.required.orEmpty().toSet()
+        properties.forEach { (name, schema) ->
+          appendLine("    $name (${schema.parameterSummary(required = name in required)})")
+          schema.schemaDescription()?.let { appendLine("      $it") }
+        }
+      }
+    }
+  }.trimEnd()
+}
+
+private fun JsonElement.parameterSummary(required: Boolean): String = buildList {
+  add((this@parameterSummary as? JsonObject)?.get("type")?.primitiveContentOrNull() ?: "any")
+  if (required) add("required")
+  (this@parameterSummary as? JsonObject)?.get("enum")?.let { enum ->
+    if (enum is JsonArray) add("one of: ${enum.joinToString(", ") { it.primitiveContentOrNull() ?: it.toString() }}")
+  }
+  (this@parameterSummary as? JsonObject)?.get("default")?.primitiveContentOrNull()?.let { add("default: $it") }
+}.joinToString(", ")
+
+private fun JsonElement.schemaDescription(): String? = (this as? JsonObject)
+  ?.get("description")
+  ?.primitiveContentOrNull()
+
+private fun JsonElement.primitiveContentOrNull(): String? = runCatching { jsonPrimitive.contentOrNull }.getOrNull()
+
 private fun MutableList<CliRegisteredTool>.collectCliMcpTools(
   node: CliCommandNode,
   path: List<String>
@@ -286,7 +326,11 @@ private fun String.isRequiredArity(): Boolean {
   return minimum != null && minimum > 0
 }
 
-private fun String.isMultipleArity(): Boolean = contains("..") || contains("*")
+private fun String.isMultipleArity(): Boolean {
+  if (contains("*")) return true
+  val maximum = substringAfter("..", missingDelimiterValue = this).toIntOrNull()
+  return maximum != null && maximum > 1
+}
 
 private fun executeCliCommand(
   root: CliCommandGroup,

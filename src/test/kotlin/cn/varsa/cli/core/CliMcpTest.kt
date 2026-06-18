@@ -68,6 +68,21 @@ class CliMcpTest {
     assertTrue(structured["stderr"]!!.jsonPrimitive.content.contains("boom"))
   }
 
+  @Test
+  fun `renders MCP tool list with descriptions and parameters`() {
+    val text = testRoot().cliMcpToolsListText()
+
+    assertTrue(text.contains("MCP tools for test (2)"))
+    assertTrue(text.contains("greet-tool"))
+    assertTrue(text.contains("Description: Say hello"))
+    assertTrue(text.contains("name (string, required)"))
+    assertTrue(text.contains("Name to greet"))
+    assertTrue(text.contains("shout (boolean)"))
+    assertTrue(text.contains("target (string)"))
+    assertTrue(text.contains("fail-tool"))
+    assertTrue(text.contains("args (array)"))
+  }
+
   private fun testRoot(): CliCommandGroup = CliCommandGroup(
     name = "test",
     description = "Test root",
