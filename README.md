@@ -10,7 +10,7 @@ This README is written for AI agents (and humans) that need a fast orientation b
 ## Quick facts
 
 - **Language/tooling**: Kotlin JVM (`kotlin("jvm")`), Gradle Kotlin DSL.
-- **Java target**: JVM toolchain 17.
+- **Java target**: JVM toolchain 21.
 - **CLI framework**: Picocli (`info.picocli:picocli:4.7.6`).
 - **Artifact**: Maven publication `cn.varsa:cli-core`.
 - **Entry code location**: `src/main/kotlin/cn/varsa/cli/core/CliCore.kt`.
