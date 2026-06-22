@@ -75,6 +75,8 @@ object CliStyle {
   fun trace(useColor: Boolean): String = label("TRACE", "35", useColor)
   fun success(text: String, useColor: Boolean): String = colorize(text, "32", useColor)
   fun danger(text: String, useColor: Boolean): String = colorize(text, "31", useColor)
+  fun surfaceMuted(text: String, useColor: Boolean): String = colorize(text, "90", useColor)
+  fun surfaceDark(text: String, useColor: Boolean): String = colorize(text, "38;5;240", useColor)
   fun bold(text: String, useColor: Boolean): String = if (useColor) "\u001B[1m$text\u001B[0m" else text
   fun warnPrefix(useColor: Boolean): String = colorize("Warning:", "33", useColor)
 

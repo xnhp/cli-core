@@ -2,8 +2,16 @@ package cn.varsa.cli.core
 
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
+import kotlin.test.assertEquals
 
 class CliMainLeafArgsTest {
+
+  @Test
+  fun `surface styles render with theme colors`() {
+    assertEquals("\u001B[90m(author)\u001B[0m", CliStyle.surfaceMuted("(author)", useColor = true))
+    assertEquals("\u001B[38;5;240msource → target\u001B[0m", CliStyle.surfaceDark("source → target", useColor = true))
+    assertEquals("source → target", CliStyle.surfaceDark("source → target", useColor = false))
+  }
 
   @Test
   fun `leaf handler receives args without command path`() {
