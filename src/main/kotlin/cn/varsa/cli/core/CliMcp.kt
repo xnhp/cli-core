@@ -67,8 +67,15 @@ data class CliToolBinding(
         leaf.options.forEach { option ->
           val value = arguments[option.schemaName()] ?: return@forEach
           if (option.takesValue) {
-            add(option.names.first())
-            add(value.jsonPrimitive.content)
+            if (option.repeatable && value is JsonArray) {
+              value.forEach { item ->
+                add(option.names.first())
+                add(item.jsonPrimitive.content)
+              }
+            } else {
+              add(option.names.first())
+              add(value.jsonPrimitive.content)
+            }
           } else if (value.jsonPrimitive.booleanOrNull == true) {
             add(option.names.first())
           }
@@ -307,7 +314,10 @@ private fun CliOption.schemaName(): String = names
   ?: names.first().trimStart('-')
 
 private fun CliOption.toSchemaProperty(): JsonElement = buildJsonObject {
-  put("type", JsonPrimitive(if (takesValue) "string" else "boolean"))
+  put("type", JsonPrimitive(if (takesValue && repeatable) "array" else if (takesValue) "string" else "boolean"))
+  if (takesValue && repeatable) {
+    put("items", buildJsonObject { put("type", JsonPrimitive("string")) })
+  }
   put("description", JsonPrimitive(description))
   valueLabel?.let { put("title", JsonPrimitive(it)) }
   defaultValue?.let { put("default", JsonPrimitive(it)) }

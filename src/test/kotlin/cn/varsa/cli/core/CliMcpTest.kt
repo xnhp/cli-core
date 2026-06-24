@@ -4,6 +4,7 @@ import io.modelcontextprotocol.kotlin.sdk.types.CallToolRequest
 import io.modelcontextprotocol.kotlin.sdk.types.CallToolRequestParams
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -31,9 +32,30 @@ class CliMcpTest {
     val properties = tool.inputSchema.properties!!
 
     assertNotNull(properties["name"])
+    assertEquals("array", properties["path"]!!.jsonObject["type"]!!.jsonPrimitive.content)
     assertNotNull(properties["shout"])
     assertNotNull(properties["target"])
     assertEquals("name", tool.inputSchema.required?.single())
+  }
+
+  @Test
+  fun `decodes repeatable option arrays from generated schema`() = runBlocking {
+    val root = testRoot()
+    val tool = root.cliMcpTools().first()
+    val request = request("greet-tool") {
+      put("name", "Ada")
+      put("path", buildJsonArray {
+        add(JsonPrimitive("one"))
+        add(JsonPrimitive("two"))
+      })
+      put("target", "World")
+    }
+
+    val result = executeCliTool(root, tool, request)
+
+    assertFalse(result.isError == true)
+    val stdout = result.structuredContent!!.jsonObject["stdout"]!!.jsonPrimitive.content
+    assertTrue(stdout.contains("--path one --path two"))
   }
 
   @Test
@@ -92,6 +114,7 @@ class CliMcpTest {
         description = "Say hello",
         options = listOf(
           CliOption(listOf("--name"), "Name to greet", takesValue = true, required = true),
+          CliOption(listOf("--path"), "Path to include", takesValue = true, repeatable = true),
           CliOption(listOf("--shout"), "Uppercase greeting")
         ),
         positionalArgs = listOf(CliPositionalArg(0, "target", "Greeting target", arity = "0..1")),
@@ -99,6 +122,7 @@ class CliMcpTest {
         handler = { args ->
           val name = args[args.indexOf("--name") + 1]
           val target = args.last()
+          println(args.joinToString(" "))
           println("Hello $name $target")
           0
         }

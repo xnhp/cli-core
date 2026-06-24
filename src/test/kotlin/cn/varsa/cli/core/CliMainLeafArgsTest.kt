@@ -38,4 +38,36 @@ class CliMainLeafArgsTest {
 
     assertContentEquals(arrayOf("--all", "sample"), captured)
   }
+
+  @Test
+  fun `repeatable option accepts multiple occurrences`() {
+    var captured: Array<String> = emptyArray()
+    val root = CliCommandGroup(
+      name = "pde",
+      description = "root",
+      children = listOf(
+        CliCommandLeaf(
+          name = "compile",
+          description = "compile",
+          handler = { args ->
+            captured = args
+            0
+          },
+          options = listOf(
+            CliOption(
+              listOf("--workspace", "-w"),
+              "Workspace bundle directory",
+              takesValue = true,
+              arity = "1",
+              repeatable = true
+            )
+          )
+        )
+      )
+    )
+
+    CliMain.run(root, arrayOf("compile", "--workspace", "a", "-w", "b"))
+
+    assertContentEquals(arrayOf("--workspace", "a", "-w", "b"), captured)
+  }
 }
