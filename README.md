@@ -77,6 +77,59 @@ Output JAR:
 
 - `build/libs/cli-core-<version>.jar`
 
+## Development
+
+Use Java 21 for local development. The Gradle wrapper is checked in so CI and
+local builds use the same Gradle distribution:
+
+```bash
+./gradlew build
+./gradlew test
+```
+
+Consumers should keep their dependency on the Maven coordinate:
+
+```kotlin
+implementation("cn.varsa:cli-core:0.1.0-SNAPSHOT")
+```
+
+For source-level local development, consumer repositories use Gradle composite
+build substitution. Pass an explicit checkout path when the default sibling
+layout is not available:
+
+```bash
+./gradlew test -PcliCorePath=/home/ben/repos/cli-core
+```
+
+Do not switch consumers to `project(...)` dependencies; included builds
+substitute the published coordinate and keep local development aligned with CI.
+
+## Publishing
+
+`cli-core` publishes to GitHub Packages as `cn.varsa:cli-core` in the
+`xnhp/cli-core` package repository:
+
+```bash
+./gradlew publish
+```
+
+Publishing credentials are read from Gradle properties first and then from the
+GitHub Actions environment:
+
+```properties
+gpr.user=<github-user>
+gpr.key=<token-with-write-packages>
+```
+
+The same publication can be deployed by the `Publish` GitHub Actions workflow.
+It runs on tags matching `cli-core-v*` and on manual `workflow_dispatch` runs.
+
+Consumers resolving the private package need `read:packages` access. In GitHub
+Actions this normally means `permissions: packages: read` plus an explicit
+`GITHUB_TOKEN` environment variable for the Gradle process. Cross-repository
+access also requires the package to grant the consuming repository access, or a
+PAT with `read:packages` configured as a secret.
+
 ## AI agent working notes
 
 When making changes, prefer these conventions:

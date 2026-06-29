@@ -1,5 +1,6 @@
 plugins {
   kotlin("jvm") version "2.2.0"
+  `java-library`
   `maven-publish`
 }
 
@@ -33,6 +34,27 @@ publishing {
     create<MavenPublication>("mavenJava") {
       from(components["java"])
       artifactId = "cli-core"
+
+      pom {
+        name.set("cli-core")
+        description.set("Shared Kotlin utilities for local CLI tools")
+        url.set("https://github.com/xnhp/cli-core")
+      }
+    }
+  }
+
+  repositories {
+    maven {
+      name = "GitHubPackages"
+      url = uri("https://maven.pkg.github.com/xnhp/cli-core")
+      credentials {
+        username = providers.gradleProperty("gpr.user")
+          .orElse(providers.environmentVariable("GITHUB_ACTOR"))
+          .orNull
+        password = providers.gradleProperty("gpr.key")
+          .orElse(providers.environmentVariable("GITHUB_TOKEN"))
+          .orNull
+      }
     }
   }
 }
