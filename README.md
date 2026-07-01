@@ -104,6 +104,41 @@ layout is not available:
 Do not switch consumers to `project(...)` dependencies; included builds
 substitute the published coordinate and keep local development aligned with CI.
 
+### Consuming `cli-core` from GitHub Packages
+
+Downstream Gradle builds typically add a dedicated Maven repository entry that
+points at the GitHub Packages feed for `cli-core`:
+
+```kotlin
+maven {
+  name = "GitHubPackages"
+  url = uri("https://maven.pkg.github.com/xnhp/cli-core")
+  credentials {
+    username = providers.gradleProperty("gpr.user")
+      .orElse(providers.environmentVariable("GITHUB_ACTOR"))
+      .orNull
+    password = providers.gradleProperty("gpr.key")
+      .orElse(providers.environmentVariable("GITHUB_TOKEN"))
+      .orNull
+  }
+  content {
+    includeGroup("cn.varsa")
+  }
+}
+```
+
+GitHub Actions runners already expose `GITHUB_ACTOR` and `GITHUB_TOKEN` with
+`read:packages` permission when the workflow grants
+`permissions: packages: read`. For local development, configure matching
+credentials either via Gradle properties (`gpr.user`, `gpr.key`) or the same
+environment variables.
+
+When contributors need unreleased changes, consumers can still opt into
+composite build substitution with `-PcliCorePath=/absolute/path/to/cli-core`.
+Gradle resolves the local checkout first, but falls back to the published
+artifact when the property is absent. This keeps CI behavior identical to a
+clean consumer that only has access to the GitHub Packages repository.
+
 ## Publishing
 
 `cli-core` publishes to GitHub Packages as `cn.varsa:cli-core` in the
