@@ -174,9 +174,3 @@ When making changes, prefer these conventions:
 3. Keep logging output deterministic and terse; color should remain optional.
 4. If adding new utilities, keep API surface small and cohesive with existing `Cli*` objects.
 5. Update this README when introducing new public helpers or moving files.
-
-## Suggested extension points
-
-- Split `CliCore.kt` into focused files as the library grows (`logging`, `process`, `commands`, `style`).
-- Add tests for parsing/resolution logic in `ColorMode` and `CliLogLevel`.
-- Add tests around `CliMain` exception handler behavior and `CliProcess` failure formatting.
